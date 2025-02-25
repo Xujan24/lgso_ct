@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+torch = "*"
+transformers = "*"
+numpy = "*"
+pandas = "*"
+accelerate = "*"
+datasets = "*"
+trl = "*"
+spacy = "*"
+nltk = "*"
+jsonlines = "*"
+scikit-learn = "*"
+pytorch-lightning = "*"
+sentence-transformers = "*"
+
+[dev-packages]
+ipykernel = "*"
+ipywidgets = "*"
+
+[requires]
+python_version = "3.12"

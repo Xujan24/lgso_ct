@@ -1,0 +1,10 @@
+*.ipynb
+/results
+/.venv
+*/__pycache__
+*.sh
+/data/dataset.tsv
+/AlignScore
+/data/*.tsv
+/data/*.pkl
+/outputs
