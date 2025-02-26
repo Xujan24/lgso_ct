@@ -57,7 +57,8 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint", type=str, required=True, help="checkpoint path name.")
     parser.add_argument("--batch-size", type=int, default=4, help='Batch size for generating responses.')
     parser.add_argument("--model-id", type=str, required=True, help='Reference model id; str if using Huggingface models or path like if loading model from local folder.')
-    parser.add_argument("--max-iter", type=int, default=10, help='Maximum number of iterations, for each query, to generate responses using the reference model.')
+    parser.add_argument('--num-return-sequences', type=int, default=20, help='Number of return sequences to generate by the reference model.')
+    parser.add_argument('--num-beams', type=int, default=30, help='Number of beams to use for beam search by the reference model.')
     parser.add_argument("--max-new-tokens", type=int, default=256, help='Maximum number of new tokens to generate by the reference model.')
     parser.add_argument("--output", type=str, required=True, help='Path to the output file. The output file will be a pickle file.')
 
@@ -68,7 +69,7 @@ if __name__ == "__main__":
         raise ValueError("The dataset file must be a .tsv file.")
 
 
-    df = pd.read_csv(args.dataset, sep='\t')[:20]
+    df = pd.read_csv(args.dataset, sep='\t')
 
     batches = split_df_into_batches(df, args.batch_size)
 
@@ -101,14 +102,15 @@ if __name__ == "__main__":
             model = model,
             tokenizer = tokenizer,
             query = queries,
-            max_iter=args.max_iter,
+            num_return_sequences=args.num_return_sequences,
+            num_beams=args.num_beams,
             max_new_tokens=args.max_new_tokens
             )
 
         for j in range(len(current_batch)):
             query = queries[j]
             chosen_list = list(set(chosen_lists[j]))
-            rejected_list = list(set(rejected_lists[j]))
+            rejected_list = rejected_lists[j]
 
             pairs = list(product(chosen_list, rejected_list))
 
@@ -144,17 +146,12 @@ if __name__ == "__main__":
             ## save the checkpoints after processing each batch
 
             checkpoint = {
-                'dataset': args.dataset,
-                'batch_size': args.batch_size,
-                'model_id': args.model_id,
-                'max_iter': args.max_iter,
-                'max_new_tokens': args.max_new_tokens,
-                'current_batch': i,
+                'current_batch_idx': j,
                 'data_obj': data_obj
             }
 
-            save_to_pkl(args.checkpoint, checkpoint)
+            save_to_pkl(os.path.join(args.checkpoint, f'{args.model_id.split("/")[-1]}.pkl'), checkpoint)
         
         del chosen_lists, rejected_lists, queries, current_batch, checkpoint
 
-    save_to_pkl(args.output, data_obj)
+    save_to_pkl(os.path.join(args.output, f'pref_data_{args.model_id.split("/")[-1]}.pkl'), data_obj)

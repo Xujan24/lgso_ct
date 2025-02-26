@@ -130,30 +130,29 @@ def gen_query(term: str, relation: str) -> str:
     return prompt
 
 
-def get_responses_from_ref_model(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, query: List[str], max_iter = 15, max_new_tokens: int = 256) -> List[List[str]]:
-    res = []
+def get_responses_from_ref_model(
+        model: AutoModelForCausalLM, 
+        tokenizer: AutoTokenizer, 
+        query: List[str], 
+        num_return_sequences = 20, 
+        num_beams: int = 30, 
+        max_new_tokens: int = 256
+    ) -> List[List[str]]:
 
     inputs = tokenizer(query, return_tensors="pt", padding=True, padding_side='left').to(model.device)  # Move inputs to the same device as the model
 
-    for i in range(max_iter):
-        with torch.no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens) # Adjust max_new_tokens as needed
+    with torch.no_grad():
+        outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, num_return_sequences=num_return_sequences, num_beams=num_beams) # Adjust max_new_tokens as needed
 
-        generated_texts = [tokenizer.decode(output, skip_special_tokens=True).strip() for output in outputs]
-        generated_texts = list(map(__format_response, generated_texts))
+    generated_responses = [tokenizer.decode(output, skip_special_tokens=True).strip() for output in outputs]
+    generated_responses = list(map(__format_response, generated_responses))
 
-        if i == 0:
-            res = generated_texts
-            del outputs, generated_texts
-            continue
-
-        for j in range(len(query)):
-            res[j] = [*res[j], *generated_texts[j]]
-        
-        del outputs, generated_texts
+    res = [list(set(generated_responses[i:i + num_return_sequences])) for i in range(0, len(generated_responses), num_return_sequences)]
+    
+    del outputs, generated_responses
     
     return res
 
 
 def __format_response(x: str) -> List[str]:
-    return [x.split('\n')[6].strip().split(']')[-1].strip().lower()]
+    return x.split('\n')[6].strip().split(']')[-1].strip().lower()
