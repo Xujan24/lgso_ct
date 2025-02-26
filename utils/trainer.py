@@ -202,6 +202,7 @@ class Trainer():
                 ## print summary
                 if current_step % self.args.logging_steps == 0:
                     tqdm.write(f"[epoch: {round(current_step/len(batches), 2)}, loss: {round(running_loss/self.args.logging_steps, 4)}]")
+                    running_loss = 0
 
                 ## save checkpoint
                 if current_step % self.args.checkpoint_save_steps == 0:

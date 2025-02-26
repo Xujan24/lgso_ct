@@ -46,7 +46,7 @@ if __name__ == '__main__':
         method=args.method
     )
 
-    train_data = Dataset.from_list(load_from_pkl(args.input)[:20])
+    train_data = Dataset.from_list(load_from_pkl(args.input))
 
     trainer = Trainer(
         model_id=args.model_id,
