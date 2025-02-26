@@ -4,7 +4,7 @@
 */__pycache__
 *.sh
 /data/dataset.tsv
-/AlignScore
+/AlignScore/checkpts
 /data/*.tsv
 /data/*.pkl
 /outputs
