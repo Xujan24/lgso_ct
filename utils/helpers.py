@@ -145,14 +145,17 @@ def get_responses_from_ref_model(
         outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, num_return_sequences=num_return_sequences, num_beams=num_beams) # Adjust max_new_tokens as needed
 
     generated_responses = [tokenizer.decode(output, skip_special_tokens=True).strip() for output in outputs]
-    generated_responses = list(map(__format_response, generated_responses))
+    generated_responses = list(map(format_response, generated_responses))
 
     res = [list(set(generated_responses[i:i + num_return_sequences])) for i in range(0, len(generated_responses), num_return_sequences)]
+    ## for some inputs the model returns an empty string and we want to filter those out;
+    res = [list(filter(lambda x: x.strip(), r))for r in res]
     
     del outputs, generated_responses
     
     return res
 
 
-def __format_response(x: str) -> List[str]:
-    return x.split('\n')[6].strip().split(']')[-1].strip().lower()
+def format_response(x: str) -> str:
+    x_parts = x.split('\n')
+    return x_parts[6].strip().split(']')[-1].strip().lower() if len(x_parts) > 6 else ""
