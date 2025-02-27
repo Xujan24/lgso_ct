@@ -224,15 +224,7 @@ class Trainer():
         save_to_pkl(file_path=f'{self.args.output_dir}/rewards/{self.model_id}.pkl', data=chosen_rejected_rewards)
 
         ## save the fine-tuned model
-        self.save()
-    
-
-    def save(self) -> None:
-        if not os.path.exists(self.args.output_dir):
-            os.makedirs(self.args.output_dir)
-        
-        torch.save(self.model.state_dict(), os.path.join(self.args.output_dir, f'tuned_{self.model_id.split("/")[-1]}.pt'))
-        return None
+        self.__save()
 
 
     def compute_logits(
@@ -369,7 +361,16 @@ class Trainer():
             'q_chosen': q_chosen,
             'q_rejected': q_rejected,
         }
-    
+
+
+    def __save(self) -> None:
+        if not os.path.exists(self.args.output_dir):
+            os.makedirs(self.args.output_dir)
+        
+        self.model.save_pretrained(os.path.join(self.args.output_dir, self.model_id.split('/')[-1]))
+        self.tokenizer.save_pretrained(os.path.join(self.args.output_dir, self.model_id.split('/')[-1]))
+        return None
+
 
     def __save_checkpoint(self, current_step: int) -> None:
         """Saves the current model checkpoint."""
