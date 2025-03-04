@@ -157,5 +157,7 @@ def get_responses_from_ref_model(
 
 
 def format_response(x: str) -> str:
+    ## current answer format [Answer] <answer with both lower and upper case>
+    ## Converting it to [Answer] <answer in lower case> to remove any duplicate answers.
     x_parts = x.split('\n')
-    return x_parts[6].strip().split(']')[-1].strip().lower() if len(x_parts) > 6 else ""
+    return f'[Answer] {x_parts[6].strip().split(']')[-1].strip().lower()}' if len(x_parts) > 6 else ""
