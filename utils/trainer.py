@@ -66,7 +66,7 @@ class Trainer():
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=self.args.learning_rate)
 
         if not os.path.exists(self.args.checkpoint_dir):
-            os.makedirs(self.self.args.checkpoint_dir)
+            os.makedirs(self.args.checkpoint_dir)
     
 
     def train(self, resume: bool = False) -> None:
