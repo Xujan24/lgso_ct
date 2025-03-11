@@ -50,7 +50,7 @@ from utils.helpers import load_from_pkl, save_to_pkl
 def calc_score_weights(
         alignscores: List[float], 
         simscores: List[float], 
-        tau: Union[float, int] = 0.5) -> Tuple[float, float]:
+        tau: Union[float, int] = 0.2) -> Tuple[float, float]:
 
     ## calc the mean and standard deviation of the corresponding scores
     mu_alignscore = np.mean(alignscores)
@@ -154,6 +154,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, required=True, help='Path to the data file')
     parser.add_argument('--output', type=str, required=True, help='Path to the output file')
+    parser.add_argument('--tau', type=float, default=0.2, help='tau value for calculating score weights')
     args = parser.parse_args()
 
     data = load_from_pkl(args.input)
@@ -232,7 +233,7 @@ if __name__ == "__main__":
     sim_scores = [entry["simscore"] for responses in rejected_options_scores.values() for entry in responses]
 
     tqdm.write('Calculating score weights')
-    alpha_align, alpha_sim = calc_score_weights(alignscores=align_scores, simscores=sim_scores)
+    alpha_align, alpha_sim = calc_score_weights(alignscores=align_scores, simscores=sim_scores, tau=args.tau)
 
 
     tqdm.write('Generating ranked dataset')
