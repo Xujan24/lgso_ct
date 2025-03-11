@@ -21,7 +21,8 @@ from .helpers import save_to_pkl
 class TrainingArguments():
     def __init__(
             self,  
-            output_dir: str, 
+            output_dir: str,
+            checkpoint_dir: str, 
             beta: float = 0.1, 
             learning_rate: float = 1e-6, 
             train_epochs: int=10, 
@@ -37,6 +38,7 @@ class TrainingArguments():
         self.train_epochs = train_epochs
         self.batch_size = batch_size
         self.output_dir = output_dir
+        self.checkpoint_dir = checkpoint_dir
         self.logging_steps = logging_steps
         self.checkpoint_save_steps = checkpoint_save_steps
         self.num_save_checkpoints = num_save_checkpoints
@@ -63,10 +65,8 @@ class Trainer():
 
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=self.args.learning_rate)
 
-        self.checkpoint_dir = f'{self.args.output_dir}/checkpoints/{self.model_id.split("/")[-1]}'
-
-        if not os.path.exists(self.checkpoint_dir):
-            os.makedirs(self.checkpoint_dir)
+        if not os.path.exists(self.args.checkpoint_dir):
+            os.makedirs(self.self.args.checkpoint_dir)
     
 
     def train(self, resume: bool = False) -> None:
@@ -78,13 +78,13 @@ class Trainer():
         total_steps = len(batches) * self.args.train_epochs
 
         if resume:
-            checkpoints = os.listdir(self.checkpoint_dir)
+            checkpoints = os.listdir(self.args.checkpoint_dir)
             if len(checkpoints) > 0:
                 tqdm.write('Loading latest checkpoint...')
                 dir = self.__get_dir(checkpoints, latest=True)
 
                 ## load the checkpoint and load the model and optimizer from it.
-                checkpoint = torch.load(os.path.join(self.checkpoint_dir, dir, 'checkpoint.pt'))
+                checkpoint = torch.load(os.path.join(self.args.checkpoint_dir, dir, 'checkpoint.pt'))
                 self.model.load_state_dict(checkpoint['model_state_dict'])
                 self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -101,8 +101,8 @@ class Trainer():
         else:
             ## remove previous checkpoints if exists and not resuming
             tqdm.write('Removing previous checkpoints if exists...')
-            for dir in os.listdir(self.checkpoint_dir):
-                shutil.rmtree(os.path.join(self.checkpoint_dir, dir))
+            for dir in os.listdir(self.args.checkpoint_dir):
+                shutil.rmtree(os.path.join(self.args.checkpoint_dir, dir))
 
         progressbar = tqdm(total=total_steps, position=0, initial=current_step, leave=True)
 
@@ -379,13 +379,13 @@ class Trainer():
             return None
         
         ## get a list of current saved checkpoints
-        current_checkpoint_dir = os.path.join(self.checkpoint_dir, "checkpoint_{}".format(current_step))
-        previous_checkpoints = os.listdir(self.checkpoint_dir)
+        current_checkpoint_dir = os.path.join(self.args.checkpoint_dir, "checkpoint_{}".format(current_step))
+        previous_checkpoints = os.listdir(self.args.checkpoint_dir)
 
         ## only store last self.args.num_save_checkpoints checkpoints
         if len(previous_checkpoints) >= self.args.num_save_checkpoints:
             remove_dir = self.__get_dir(previous_checkpoints)
-            shutil.rmtree(os.path.join(self.checkpoint_dir, remove_dir))
+            shutil.rmtree(os.path.join(self.args.checkpoint_dir, remove_dir))
         
         # create the directory for current checkpoint and save the model checkpoints
         os.makedirs(current_checkpoint_dir, exist_ok=True)
@@ -410,5 +410,5 @@ class Trainer():
         Return `str` -- the oldest (or newest) dir.
         
         """
-        sorted_dirs = sorted(dir_list, key=lambda x: os.path.getctime(os.path.join(self.checkpoint_dir, x)))
+        sorted_dirs = sorted(dir_list, key=lambda x: os.path.getctime(os.path.join(self.args.checkpoint_dir, x)))
         return sorted_dirs[-1] if latest else sorted_dirs[0]

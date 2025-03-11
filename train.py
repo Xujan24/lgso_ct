@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--model-id', type=str, required=True, help='Model id')
     parser.add_argument('--cuda', action='store_true')
     parser.add_argument('--output', type=str, default='outputs')
+    parser.add_argument('--checkpoint', type=str, default='checkpoints', help='Path to save the checkpoints')
     parser.add_argument('--beta', type=float, default=0.1)
     parser.add_argument('--learning-rate', type=float, default=1e-5)
     parser.add_argument('--label-smoothing', type=float, default=0.0)
@@ -35,6 +36,7 @@ if __name__ == '__main__':
 
     train_args = TrainingArguments(
         output_dir=args.output,
+        checkpoint_dir=args.checkpoint,
         beta=args.beta,
         learning_rate=args.learning_rate,
         train_epochs=args.train_epochs,
