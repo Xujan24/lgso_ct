@@ -73,40 +73,77 @@ def calc_score_weights(
     return alpha_align, alpha_sim
 
 
-def calc_score(
-        alignscore: AlignScore, 
+def calc_scores(
+        scorer: AlignScore, 
         sbert: SentenceTransformer, 
-        y_w: str, 
-        y_l: str) -> Tuple[float, float]:
-    """Computes the score between two texts `y_w` and `y_l`
-
-    TODO: Implement as the combination of the AlignScore and the cosine similarity score.
-
-    
-    Keyword arguments: \\
-    y_w (str) -- ground truth (or the golden option) \\
-    y_l (str) -- losing option (generally the response from a LM) \\
-    
-    Return: (float) score between `y_w` and `y_l`
+        chosen_options: List[str], 
+        rejected_options: List[str]
+    ) -> Tuple[List[float], List[float]]:
     """
+    Calculates scores using the SBERT and AlignScore.
 
-    # for debuging
-    # print(f'{y_w} / {y_l}')
-    
-    ## calculate alignscore
-    a_s = alignscore.score(contexts=[y_w], claims=[y_l])[0]
+    Keyword arguments: \\
+    scorer (AlignScore) - AlignScore instance \\
+    sbert (SentenceTransformers) - Sentence transformers instance \\
+    chosen_options (List[str]) - list of chosen options \\
+    rejected_options (List[str]) - list of rejected options
 
-    ## calc cosine sim. using sbert
-    embs = sbert.encode([y_w, y_l])
-    emb_w, emb_l = embs[0], embs[1]
-    s_s = sbert.similarity(emb_w, emb_l).item()
+    returns:\\
+    Tuple[List[float], List[float]] - tuple of scores
+    """
+    ## calculate the alignment score using AlignScore
+    ## we use all the chosen options as the context and all the rejected options as the claims
+    ## the current implementation of AlignScore does not support calculating score between each contexts and each claims
+    ## it calculates the score between corresponding contexts and claims
+    ## we extend the contexts and claims so that we can calculate the alignment score on a single pass
+    adjusted_chosen_options = chosen_options * len(rejected_options)
+    adjusted_rejected_options = [item for item in rejected_options for _ in range(len(chosen_options))]
 
-    return a_s, s_s
+    align_scores = scorer.score(contexts=adjusted_chosen_options, claims=adjusted_rejected_options)
+    align_scores = np.reshape(np.array(align_scores), (len(rejected_options), -1)).T
+    align_scores = np.mean(align_scores, axis=0).tolist()
+
+    del adjusted_chosen_options, adjusted_rejected_options
+
+    ## calculate the similarity score using SBERT
+    embs = sbert.encode([*chosen_options, *rejected_options])
+    cos_scores = sbert.similarity(embs[:len(chosen_options)], embs[len(chosen_options):])
+    cos_scores = cos_scores.mean(axis=0).tolist()
+
+    del embs
+
+    return align_scores, cos_scores
+
+
+def calc_sim_scores(
+        sbert: SentenceTransformer, 
+        chosen_options: List[str], 
+        rejected_options: List[str]
+    ) -> List[float]:
+    """
+    Calculates the scores using SBERT only
+
+    Keyword arguments: \\
+    sbert - an instance of Sentence transformer model \\
+    chosen_options - list of chosen options \\
+    rejected_options - list of rejected options
+
+    returns:\\
+    List[float] - a list of cosine similarity scores
+    """
+    ## calculate scores using only the SBERT
+    embs = sbert.encode([*chosen_options, *rejected_options])
+    cos_scores = sbert.similarity(embs[:len(chosen_options)], embs[len(chosen_options):])
+    cos_scores = cos_scores.mean(axis=0).tolist()
+
+    del embs
+
+    return cos_scores
 
 
 def gen_triplets(
         options: List[str], 
-        scores: List[float]) -> Tuple [str, str, float]:
+        scores: List[float]) -> Union[Tuple [str, str, float], None]:
     """Generates triplets from the given list of options and corresponding scores. Important: the lists must be sorted in decreasing order 
     
     Keyword arguments: \\
@@ -116,6 +153,9 @@ def gen_triplets(
     """
     
     triplets = []
+    if len(options) == 1:
+        return None
+    
     for i in range(len(options)):
         if i == len(options) - 1:
             break
@@ -164,7 +204,7 @@ if __name__ == "__main__":
     formatted_data = {}
     tqdm.write('Formatting data...')
 
-    for d in tqdm(data):
+    for d in tqdm(data[:5]):
         ## get current query
         chosen = d.get('chosen')
         rejected = d.get('rejected')
@@ -190,78 +230,65 @@ if __name__ == "__main__":
         formatted_data.get(query)['rejected'] = list(set(formatted_data.get(query)['rejected']))
 
         del query
-    
-    ## initialize the alignscore model and sbert
-    tqdm.write('Calculating scores ...')
-    alignscore = AlignScore()
+
+    ## using SBERT only
+    tqdm.write('Calculating individual scores ...')
     sbert = SentenceTransformer('all-MiniLM-L6-v2')
+    scorer = AlignScore()
+
+    align_scores = []
+    cos_scores = []
 
     rejected_options_scores = {}
     for k, v in tqdm(formatted_data.items()):
-        ## for each rejected options, get the scores agains each chosen options
-        chosen_options = v['chosen']
-        rejected_options = v['rejected']
+        chosen_options = list(filter(lambda x: len(x.strip()) > 0, v['chosen']))
+        rejected_options = list(filter(lambda x: len(x.strip()) > 0, v['rejected']))
+        _align_scores, _cos_scores = calc_sim_scores(scorer=scorer, sbert=sbert, chosen_options=chosen_options, rejected_options=rejected_options)
 
-        option_scores = []
+        ## store all the scores to calculate the score weights later
+        align_scores.extend(_align_scores)
+        cos_scores.extend(_cos_scores)
 
-        for rejected_option in rejected_options:
-            if len(rejected_option.strip()) == 0:
-                ## wierd: sometimes the response is empty
-                tqdm.write('found empty response')
-                continue
-            
-            align_score, cos_sim = 0, 0
+        rejected_options_scores[k] = {
+            'rejected_options': rejected_options,
+            'align_scores': _align_scores,
+            'cos_scores': _cos_scores
+        }
 
-            for chosen_option in chosen_options:
-                _as, _cs = calc_score(alignscore=alignscore, sbert=sbert, y_w=chosen_option, y_l=rejected_option)
-                align_score += _as
-                cos_sim += _cs
-
-                del _as, _cs
-
-            option_scores.append({
-                    'response': rejected_option,
-                    'alignscore': align_score/len(chosen_options), 
-                    'simscore': cos_sim/len(chosen_options)
-            })
-        rejected_options_scores[k] = option_scores
-
-    del alignscore, sbert, formatted_data
-
-
-    align_scores = [entry["alignscore"] for responses in rejected_options_scores.values() for entry in responses]
-    sim_scores = [entry["simscore"] for responses in rejected_options_scores.values() for entry in responses]
-
-    tqdm.write('Calculating score weights')
-    alpha_align, alpha_sim = calc_score_weights(alignscores=align_scores, simscores=sim_scores, tau=args.tau)
+        del chosen_options, rejected_options, _align_scores, _cos_scores
+    
+    
+    tqdm.write('Calculating score weights ...')
+    alpha_align, alpha_cos = calc_score_weights(alignscores=align_scores, simscores=cos_scores, tau=args.tau)
 
 
     tqdm.write('Generating ranked dataset')
     final_dataset = []
     for k, v in tqdm(rejected_options_scores.items()):
-        response_score_pairs = []
-        for item in v:
-            response_score_pairs.append((item['response'], alpha_align * item['alignscore'] + alpha_sim * item['simscore']))
-        ## sort the responses using the final scores
+        wt_scores = alpha_align * np.array(v['align_scores']) + alpha_cos * np.array(v['cos_scores'])
+        response_score_pairs = list((x, y) for x, y in zip(v['rejected_options'], wt_scores))
         response_score_pairs.sort(key=lambda x: x[1], reverse=True)
 
         sorted_responses = [pair[0] for pair in response_score_pairs]
         sorted_response_scores = [pair[1] for pair in response_score_pairs]
 
-        del response_score_pairs
+        del response_score_pairs, wt_scores
 
         triplets = gen_triplets(sorted_responses, sorted_response_scores)
 
         for triplet in triplets:
+            if triplet == None:
+                continue
+            
             y_w, y_l, lambda_wl = triplet
             final_dataset.append({
                 'query': k,
                 'chosen': y_w,
                 'rejected': y_l,
-                'lambda': lambda_wl
+                'lambda': lambda_wl.item()
             })
 
-            del triplet
+            del y_w, y_l, lambda_wl, triplet
 
         del triplets
     
