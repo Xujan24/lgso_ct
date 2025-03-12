@@ -204,7 +204,7 @@ if __name__ == "__main__":
     formatted_data = {}
     tqdm.write('Formatting data...')
 
-    for d in tqdm(data[:5]):
+    for d in tqdm(data):
         ## get current query
         chosen = d.get('chosen')
         rejected = d.get('rejected')
