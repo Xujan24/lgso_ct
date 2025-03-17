@@ -96,6 +96,8 @@ class Trainer():
                 ## load chosen and rejected rewards from the checkpoint
                 self.chosen_rewards_per_batch_per_epoch = checkpoint['chosen_rewards']
                 self.rejected_rewards_per_batch_per_epoch = checkpoint['rejected_rewards']
+
+                del checkpoint
             else:
                 warnings.warn('No checkpoints found. Training from scratch.')
         else:
@@ -112,11 +114,13 @@ class Trainer():
             ## if resuming then load from the previous checkpoints
             running_chosen_rewards_per_batch = self.chosen_rewards_per_batch_per_epoch[-1] if resume and epoch == current_epoch else []
             running_rejected_rewards_per_batch = self.rejected_rewards_per_batch_per_epoch[-1] if resume and epoch == current_epoch else []
-            # self.optimizer.zero_grad()
 
             for batch_idx, batch in enumerate(batches):
                 if epoch == current_epoch and batch_idx < current_batch_idx:
                     continue
+
+                self.optimizer.zero_grad()
+                
                 ## the LPO dataset will have lambda scores along with query, chosen and rejected options.
                 if self.args.method == 'lpo':
                     if 'lambda' not in list(batch.keys()):
